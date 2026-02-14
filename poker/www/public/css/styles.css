@@ -1,0 +1,201 @@
+
+body {
+    font-family: 'Roboto', sans-serif;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh; /* 最小高さを100vhに設定 */
+    background-color: #4CAF50; /* 緑をベースにしたデザイン */
+    color: white; /* テキスト色を白に */
+    background-image: linear-gradient(45deg, #4CAF50, #81C784); /* 緑のグラデーション背景 */
+    overflow-y: auto; /* 縦方向にスクロール可能にする */
+}
+
+h2 {
+    margin: 10px 0;
+    font-size: 24px;
+    font-weight: 500;
+}
+
+.player-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 30px 0;
+    width: 100%;
+}
+
+.card-row {
+    display: flex;
+    gap: 15px;
+    margin: 20px 0;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+#selected-cards {
+    display: flex;
+    gap: 15px;
+    margin-top: 30px;
+    padding: 15px;
+    border: 2px solid #FFEB3B; /* 明るい黄色のボーダー */
+    border-radius: 15px;
+    background-color: rgba(255, 235, 59, 0.2); /* 半透明の黄色背景 */
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.2); /* ソフトなシャドウ */
+}
+
+.card {
+    position: relative; /* ツールチップを親要素に相対的に配置 */
+    display: inline-block;
+    margin: 5px;
+    text-align: center;
+    border: 2px solid #fff;
+    border-radius: 10px;
+    padding: 8px;
+    cursor: pointer;
+    transition: transform 0.3s ease, box-shadow 0.3s ease; /* カードにアニメーションを追加 */
+    width: 100px;
+    height: 140px;
+    z-index: 10;
+    opacity: 0;
+}
+
+.card.animate {
+    opacity: 1;
+    transform: translateX(0) translateY(0); /* カードが最終位置に移動 */
+  }
+
+.card img {
+    width: 90px; /* カード画像の幅を少し広げる */
+    height: 120px;
+    border-radius: 8px;
+    transition: transform 0.3s ease; /* カード画像にアニメーションを追加 */
+}
+
+.tooltip {
+    position: absolute;
+    bottom: 125%; /* カードの下に配置 */
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.7); /* 半透明の黒背景 */
+    color: white;
+    padding: 10px;
+    border-radius: 8px;
+    width: 200px; /* 横長にするための幅 */
+    text-align: center;
+    font-size: 14px;
+    visibility: hidden; /* デフォルトでは非表示 */
+    opacity: 0;
+    transition: opacity 0.3s; /* フェードインアニメーション */
+}
+
+/* マウスオーバー時にツールチップを表示 */
+.card:hover .tooltip {
+    visibility: visible;
+    opacity: 1;
+}
+
+.card.selected img {
+    transform: scale(1.1);
+}
+
+.card:hover {
+    transform: scale(1.1); /* カードがホバー時に拡大 */
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); /* ホバー時にシャドウを強調 */
+}
+
+.card.selected {
+    border: 2px solid #FFEB3B; /* 選択状態のスタイル */
+    box-shadow: 0 4px 15px rgba(255, 235, 59, 0.5); /* 選択したカードに特別なシャドウを追加 */
+}
+
+.effect-details {
+    display: none; /* 初期状態では非表示 */
+    position: absolute;
+    left: 120%; /* カードの右側に配置 */
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    border-radius: 5px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    font-size: 14px;
+    width: 200px;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.card:hover + .effect-details {
+    display: block;
+    opacity: 1; /* ホバー時に詳細情報を表示 */
+}
+
+.your-cards, .opponent-cards {
+    border: 2px solid #FFEB3B;
+    padding: 15px;
+    border-radius: 15px;
+    width: 85%;
+    text-align: center;
+    margin-top: 20px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); /* ボックスシャドウを追加 */
+    background: rgba(255, 235, 59, 0.2); /* 薄い黄色背景 */
+}
+
+.opponent-cards {
+    border-color: #2196F3; /* 青色のボーダー */
+}
+
+button {
+    padding: 12px 24px;
+    background-color: #FFEB3B;
+    color: #333;
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s ease, transform 0.3s ease; /* ボタンにアニメーションを追加 */
+    margin-top: 20px;
+}
+
+button:hover {
+    background-color: #FFCA28; /* ホバー時に少し暗くなる */
+    transform: scale(1.05); /* ホバー時に拡大 */
+}
+
+button:disabled {
+    background-color: #BDBDBD;
+    cursor: not-allowed;
+}
+
+#your-cards {
+    display: flex;
+    gap: 15px;
+    margin-top: 30px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+#restart-button {
+    padding: 12px 24px;
+    font-size: 16px;
+    background-color: #FFEB3B;
+    color: #333;
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.3s ease;
+}
+
+#restart-button:hover {
+    background-color: #FFCA28;
+    transform: scale(1.05);
+}
+
+#game-stats {
+    display: none;
+}
+
