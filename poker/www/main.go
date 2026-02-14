@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"os"
 	"www/internal/handlers"
 )
 
@@ -13,7 +14,12 @@ func main() {
 
 	// ハンドラを登録
 	http.HandleFunc("/ws", handlers.HandleConnections)
-	// サーバの開始
-	http.ListenAndServe("localhost:8080", nil) // 変更後
+
+	// Railway用: PORT環境変数でリッスン
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	http.ListenAndServe(":"+port, nil)
 
 }
