@@ -1,4 +1,7 @@
-const socket = new WebSocket("ws://localhost:8080/ws");
+// 本番・ローカル両対応のWebSocket URL生成
+const wsProtocol = location.protocol === "https:" ? "wss:" : "ws:";
+const wsHost = location.host;
+const socket = new WebSocket(`${wsProtocol}//${wsHost}/ws`);
 
 let yourCards = []; // サーバーから送られる自分のカード
 let selectedCards = []; // プレイヤーが選択したカード
@@ -29,7 +32,7 @@ socket.onmessage = (event) => {
             const cardDiv = document.createElement("div");
             cardDiv.className = "card animate";
     
-            const baseURL = "http://localhost:8080/";
+            const baseURL = `${location.protocol}//${location.host}/`;
             const cardImage = document.createElement("img");
             cardImage.src = `${baseURL}${card.image}`; // サーバーから送られた画像URLを使用
             cardImage.alt = `${card.Value} of ${card.Suit}`;
@@ -80,7 +83,7 @@ function renderYourCards() {
         cardDiv.className = "card";
 
         // ベースURLを追加して完全な画像URLを作成
-        const baseURL = "http://localhost:8080/";
+        const baseURL = `${location.protocol}//${location.host}/`;
         const cardImage = document.createElement("img");
         cardImage.src = `${baseURL}${card.image}`; // 修正ポイント: ベースURLを追加
         cardImage.alt = `${card.Value} of ${card.Suit}`;
