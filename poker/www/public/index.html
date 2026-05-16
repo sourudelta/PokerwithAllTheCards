@@ -7,13 +7,15 @@
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-    <div id="join">
-        <label for="roomId">ルームID:</label>
-        <input type="text" id="roomId" placeholder="ルームIDを入力">
-    </div>
-    <div id="join">
-        <label for="playerName">プレイヤー名:</label>
-        <input type="text" id="playerName" placeholder="プレイヤー名を入力">
+    <div id="setup-container">
+        <div class="input-group">
+            <label for="roomId">ルームID:</label>
+            <input type="text" id="roomId" placeholder="ルームIDを入力">
+        </div>
+        <div class="input-group">
+            <label for="playerName">プレイヤー名:</label>
+            <input type="text" id="playerName" placeholder="プレイヤー名を入力">
+        </div>
     </div>
     <button id="joinButton">ルームに参加</button>
 
@@ -48,7 +50,17 @@
     <div id="game-controls">
         <button id="restart-button" style="display: none;">Next</button>
     </div>
+
+    <!-- 最終結果モーダル -->
+    <div id="final-result-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h2>全5ラウンド終了！</h2>
+            <p id="final-summary-message"></p>
+            <button onclick="location.reload()">もう一度遊ぶ</button>
+        </div>
+    </div>
     
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
