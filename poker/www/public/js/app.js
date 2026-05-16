@@ -17,6 +17,19 @@ socket.onmessage = (event) => {
     
     const message = JSON.parse(event.data);
     console.log("Received message:", message); // 受信データを確認
+
+    if (message.type === "error") {
+        alert(message.message);
+        return;
+    }
+
+    if (message.type === "joined") {
+        // 参加成功時にのみ画面を切り替える
+        document.getElementById("joinButton").style.display = "none";
+        document.getElementById("join").style.display = "none";
+        document.getElementById("game-stats").style.display = "block";
+    }
+
     if (message.type === "cards") {
         // サーバーから受け取ったカードを表示
         yourCards = message.cards;
@@ -185,10 +198,6 @@ document.getElementById('joinButton').addEventListener('click', () => {
         room_id: roomID,
         name: playerName,
     }));
-            // 参加ボタンを非表示にし、ゲーム情報を表示
-    document.getElementById("joinButton").style.display = "none";
-    document.getElementById("join").style.display = "none";
-    document.getElementById("game-stats").style.display = "block";
 });
 
 // リスタートボタンの動作

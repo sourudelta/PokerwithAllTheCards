@@ -159,6 +159,18 @@ func (r *Room) addPlayer(player *Player) bool {
 		return false
 	}
 
+	// 同名のプレイヤーがいないかチェック
+	for _, p := range r.Players {
+		if p.Name == player.Name {
+			log.Printf("Player name %s already exists in room %s.", player.Name, r.ID)
+			_ = player.Conn.WriteJSON(map[string]interface{}{
+				"type":    "error",
+				"message": "Username is already taken in this room.",
+			})
+			return false
+		}
+	}
+
 	r.Players = append(r.Players, player)
 	log.Printf("Player %s added to room %s. Total players: %d", player.Name, r.ID, len(r.Players))
 	return true
