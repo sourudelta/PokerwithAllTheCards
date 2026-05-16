@@ -6,6 +6,10 @@ const socket = new WebSocket(`${wsProtocol}//${wsHost}/ws`);
 let yourCards = []; // サーバーから送られる自分のカード
 let selectedCards = []; // プレイヤーが選択したカード
 
+let winCount = 0;
+let lossCount = 0;
+let drawCount = 0;
+
 const SpecialCard = [
     { effect: "相手のカードを全て破壊" },
     { effect: "相手の特殊カードを無効にする" },
@@ -70,18 +74,28 @@ socket.onmessage = (event) => {
 
         // リスタートボタンを表示
         document.getElementById("restart-button").style.display = "inline-block";
-                // 勝利数を更新
-        if (resultMessage === "You win") {
-            const yourWins = document.getElementById("your-wins");
-            yourWins.textContent = parseInt(yourWins.textContent) + 1;
+
+        // 勝敗数を記録 (メッセージの内容に基づいて判定)
+        if (resultMessage.includes("You win")) {
+            winCount++;
+            // ラウンド勝利の紙吹雪
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 }
+            });
+        } else if (resultMessage.includes("You lose")) {
+            lossCount++;
+        } else {
+            drawCount++;
         }
+
         // ラウンド数を更新
         const roundCount = document.getElementById("round-count");
         roundCount.textContent = message.round; // サーバーからラウンド数を受け取って更新
         if(message.round > 5)
         {
-            alert("ゲーム終了");
-            document.getElementById("restart-button").style.display = "none";
+            showFinalResult();
         }
     }
 };
@@ -199,6 +213,43 @@ document.getElementById('joinButton').addEventListener('click', () => {
         name: playerName,
     }));
 });
+
+// 最終結果を表示するモーダル
+function showFinalResult() {
+    const modal = document.getElementById("final-result-modal");
+    const message = document.getElementById("final-summary-message");
+    
+    message.innerHTML = `戦績: ${winCount}勝 ${lossCount}敗 ${drawCount}分`;
+    modal.style.display = "flex"; // CSSで.modalにdisplay:flexを設定している前提
+    document.getElementById("restart-button").style.display = "none";
+
+    // 最終的に勝ち越していた場合、豪華な紙吹雪を降らせる
+    if (winCount > lossCount) {
+        const duration = 3 * 1000;
+        const end = Date.now() + duration;
+
+        (function frame() {
+            confetti({
+                particleCount: 3,
+                angle: 60,
+                spread: 55,
+                origin: { x: 0 },
+                colors: ['#bb0000', '#ffffff', '#ffd700']
+            });
+            confetti({
+                particleCount: 3,
+                angle: 120,
+                spread: 55,
+                origin: { x: 1 },
+                colors: ['#bb0000', '#ffffff', '#ffd700']
+            });
+
+            if (Date.now() < end) {
+                requestAnimationFrame(frame);
+            }
+        }());
+    }
+}
 
 // リスタートボタンの動作
 document.getElementById("restart-button").addEventListener("click", () => {
