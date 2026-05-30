@@ -1,3 +1,18 @@
+// モーダルを動的に読み込む
+fetch("html/result_modal.html")
+    .then(res => res.text())
+    .then(html => { document.body.insertAdjacentHTML("beforeend", html); });
+
+fetch("html/round_result_modal.html")
+    .then(res => res.text())
+    .then(html => {
+        document.body.insertAdjacentHTML("beforeend", html);
+        document.getElementById("restart-button").addEventListener("click", () => {
+            document.getElementById("round-result-modal").style.display = "none";
+            resetGameState();
+        });
+    });
+
 // 本番・ローカル両対応のWebSocket URL生成
 const wsProtocol = location.protocol === "https:" ? "wss:" : "ws:";
 const wsHost = location.host;
@@ -5,16 +20,20 @@ const socket = new WebSocket(`${wsProtocol}//${wsHost}/ws`);
 
 let yourCards = []; // サーバーから送られる自分のカード
 let selectedCards = []; // プレイヤーが選択したカード
+let localPlayerName = ""; // 自分のプレイヤー名
 
 let winCount = 0;
 let lossCount = 0;
 let drawCount = 0;
+
 
 const SpecialCard = [
     { effect: "相手のカードを全て破壊" },
     { effect: "相手の特殊カードを無効にする" },
     { effect: "相手の手札上限を１減らす" },
 ];
+
+const MAX_ROUNDS = 5; 
 
 // サーバーからのメッセージを受信
 socket.onmessage = (event) => {
@@ -29,9 +48,12 @@ socket.onmessage = (event) => {
 
     if (message.type === "joined") {
         // 参加成功時にのみ画面を切り替える
-        document.getElementById("joinButton").style.display = "none";
-        document.getElementById("join").style.display = "none";
-        document.getElementById("game-stats").style.display = "block";
+        const joinBtn = document.getElementById("joinButton");
+        if (joinBtn) joinBtn.style.display = "none";
+        const joinDiv = document.getElementById("join");
+        if (joinDiv) joinDiv.style.display = "none";
+        const statsDiv = document.getElementById("game-stats");
+        if (statsDiv) statsDiv.style.display = "block";
     }
 
     if (message.type === "cards") {
@@ -65,18 +87,10 @@ socket.onmessage = (event) => {
         // ゲーム結果の受信
         const resultMessage = message.result;
         
-        // 結果メッセージを表示
-        const resultElement = document.getElementById("game-result");
-        const resultText = document.getElementById("result-message");
-
-        resultText.textContent = resultMessage; // 結果メッセージを設定
-        resultElement.style.display = "block";  // 結果表示エリアを表示
-
-        // リスタートボタンを表示
-        document.getElementById("restart-button").style.display = "inline-block";
-
         // 勝敗数を記録 (メッセージの内容に基づいて判定)
-        if (resultMessage.includes("You win")) {
+        if (resultMessage.includes("Draw")) {
+            drawCount++;
+        } else if (resultMessage.includes(localPlayerName)) {
             winCount++;
             // ラウンド勝利の紙吹雪
             confetti({
@@ -84,18 +98,20 @@ socket.onmessage = (event) => {
                 spread: 70,
                 origin: { y: 0.6 }
             });
-        } else if (resultMessage.includes("You lose")) {
-            lossCount++;
         } else {
-            drawCount++;
+            lossCount++;
         }
 
         // ラウンド数を更新
         const roundCount = document.getElementById("round-count");
-        roundCount.textContent = message.round; // サーバーからラウンド数を受け取って更新
-        if(message.round > 5)
-        {
+        roundCount.textContent = message.round;
+
+        if (message.round > MAX_ROUNDS) {
             showFinalResult();
+        } else {
+            // ラウンド結果モーダルを表示
+            document.getElementById("result-message").textContent = resultMessage;
+            document.getElementById("round-result-modal").style.display = "flex";
         }
     }
 };
@@ -201,6 +217,7 @@ document.getElementById("confirm-selection").addEventListener("click", () => {
 document.getElementById('joinButton').addEventListener('click', () => {
     const roomID = document.getElementById('roomId').value;
     const playerName = document.getElementById('playerName').value;
+    localPlayerName = playerName;
 
     if (!roomID || !playerName) {
         alert('ルームIDとプレイヤー名を入力してください');
@@ -220,8 +237,7 @@ function showFinalResult() {
     const message = document.getElementById("final-summary-message");
     
     message.innerHTML = `戦績: ${winCount}勝 ${lossCount}敗 ${drawCount}分`;
-    modal.style.display = "flex"; // CSSで.modalにdisplay:flexを設定している前提
-    document.getElementById("restart-button").style.display = "none";
+    modal.style.display = "flex";
 
     // 最終的に勝ち越していた場合、豪華な紙吹雪を降らせる
     if (winCount > lossCount) {
@@ -251,14 +267,6 @@ function showFinalResult() {
     }
 }
 
-// リスタートボタンの動作
-document.getElementById("restart-button").addEventListener("click", () => {
-    resetGameState();
-
-    // ボタンを隠す
-    document.getElementById("restart-button").style.display = "none";
-});
-
 // ゲーム状態をリセット
 function resetGameState() {
     yourCards = [];
@@ -267,16 +275,13 @@ function resetGameState() {
     document.getElementById("opponent-cards").innerHTML = "";
     document.getElementById("selected-cards").innerHTML = "";
 
-    // 結果表示を非表示に
-    const resultElement = document.getElementById("game-result");
-    if (resultElement) {
-        resultElement.style.display = "none";
-        document.getElementById("result-message").textContent = "";
-    }
+    // ラウンド結果モーダルを非表示に
+    const roundModal = document.getElementById("round-result-modal");
+    if (roundModal) roundModal.style.display = "none";
+    const resultText = document.getElementById("result-message");
+    if (resultText) resultText.textContent = "";
 
-    // ボタンの状態をリセット
     document.getElementById("confirm-selection").disabled = true;
-    document.getElementById("restart-button").style.display = "none";
 
     // サーバーにリスタート通知を送信
     socket.send(JSON.stringify({

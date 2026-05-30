@@ -41,25 +41,9 @@
 
 
 
-    <div id="game-result" style="display:none;">
-        <h2>ゲーム結果</h2>
-        <p id="result-message"></p>
-        
-    </div>
+    <!-- ラウンド結果モーダルは html/round_result_modal.html から動的に読み込む -->
+    <!-- 最終結果モーダルは html/result_modal.html から動的に読み込む -->
 
-    <div id="game-controls">
-        <button id="restart-button" style="display: none;">Next</button>
-    </div>
-
-    <!-- 最終結果モーダル -->
-    <div id="final-result-modal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <h2>全5ラウンド終了！</h2>
-            <p id="final-summary-message"></p>
-            <button onclick="location.reload()">もう一度遊ぶ</button>
-        </div>
-    </div>
-    
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="js/app.js"></script>
 </body>
