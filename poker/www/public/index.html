@@ -7,36 +7,40 @@
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-    <div id="setup-container">
-        <div class="input-group">
-            <label for="roomId">ルームID:</label>
-            <input type="text" id="roomId" placeholder="ルームIDを入力">
+    <div id="join-overlay">
+        <div id="setup-container">
+            <div class="input-group">
+                <label for="roomId">ルームID:</label>
+                <input type="text" id="roomId" placeholder="ルームIDを入力">
+            </div>
+            <div class="input-group">
+                <label for="playerName">プレイヤー名:</label>
+                <input type="text" id="playerName" placeholder="プレイヤー名を入力">
+            </div>
         </div>
-        <div class="input-group">
-            <label for="playerName">プレイヤー名:</label>
-            <input type="text" id="playerName" placeholder="プレイヤー名を入力">
+        <button id="joinButton">ルームに参加</button>
+    </div>
+
+    <div id="game-area">
+        <div id="game-stats">
+            <p>ラウンド数: <span id="round-count">1</span></p>
         </div>
-    </div>
-    <button id="joinButton">ルームに参加</button>
 
-    <div id="game-stats">
-        <p>ラウンド数: <span id="round-count">1</span></p>
-    </div>
-    
-    <div class="player-area">
-        <h2>Opponent's Cards</h2>
-        <div id="opponent-cards" class="card-row"></div>
-    </div>    
+        <div class="player-area">
+            <h2>相手のカード</h2>
+            <div id="opponent-cards" class="card-row"></div>
+        </div>
 
-    <div class="player-area">
-        <h2>Selected Cards</h2>
-        <div id="selected-cards" class="card-row"></div>
-    </div>
-    
-    <div class="player-area">
-        <h2>Your Cards</h2>
-        <div id="your-cards" class="card-row"></div>
-        <button id="confirm-selection" disabled>準備OK</button>
+        <div class="player-area">
+            <h2>選択中のカード</h2>
+            <div id="selected-cards" class="card-row"></div>
+        </div>
+
+        <div class="player-area">
+            <h2>手札</h2>
+            <div id="your-cards" class="card-row"></div>
+            <button id="confirm-selection" disabled>準備OK</button>
+        </div>
     </div>
 
 
