@@ -47,17 +47,18 @@ socket.onmessage = (event) => {
     }
 
     if (message.type === "joined") {
-        // 参加成功時にのみ画面を切り替える
-        const joinBtn = document.getElementById("joinButton");
-        if (joinBtn) joinBtn.style.display = "none";
-        const joinDiv = document.getElementById("join");
-        if (joinDiv) joinDiv.style.display = "none";
-        const statsDiv = document.getElementById("game-stats");
-        if (statsDiv) statsDiv.style.display = "block";
+        // 1人目の参加時はボタンが「対戦相手を探しています...」のまま待機
     }
 
     if (message.type === "cards") {
-        // サーバーから受け取ったカードを表示
+        // 両プレイヤー揃ってカードが配られたタイミングで画面を切り替える
+        const joinOverlay = document.getElementById("join-overlay");
+        if (joinOverlay) joinOverlay.style.display = "none";
+        const gameArea = document.getElementById("game-area");
+        if (gameArea) gameArea.style.display = "flex";
+        const statsDiv = document.getElementById("game-stats");
+        if (statsDiv) statsDiv.style.display = "block";
+
         yourCards = message.cards;
         renderYourCards();
     }
@@ -229,6 +230,12 @@ document.getElementById('joinButton').addEventListener('click', () => {
         room_id: roomID,
         name: playerName,
     }));
+
+    const joinBtn = document.getElementById('joinButton');
+    joinBtn.textContent = '対戦相手を探しています...';
+    joinBtn.disabled = true;
+    document.getElementById('roomId').disabled = true;
+    document.getElementById('playerName').disabled = true;
 });
 
 // 最終結果を表示するモーダル
