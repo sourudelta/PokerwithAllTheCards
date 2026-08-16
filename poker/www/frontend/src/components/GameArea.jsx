@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CardItem } from './CardItem';
 
 export function GameArea({
@@ -17,9 +17,23 @@ export function GameArea({
     setEnteredIndices(new Set());
   }, [yourCards]);
 
-  const markEntered = (index) => {
+  // useCallbackで参照を固定する。ここが再レンダリングのたびに新しい関数になると、
+  // CardItem側のuseEffect(依存配列にonEnteredを含む)が毎回再実行されてタイマーが
+  // リセットされ、カードが1枚配られるたびに残りのカードの配布アニメーションが遅延してしまう。
+  const markEntered = useCallback((index) => {
     setEnteredIndices((prev) => (prev.has(index) ? prev : new Set(prev).add(index)));
-  };
+  }, []);
+
+  // 選択/選択解除の操作をした時点で登場済み扱いにする。
+  // こうしないと配布アニメーション再生中に選択→解除すると、CardItemがアンマウントされて
+  // setTimeoutがキャンセルされ、手札に戻った時に再びアニメーションしてしまう。
+  const handleToggle = useCallback(
+    (index) => {
+      markEntered(index);
+      onToggleCard(index);
+    },
+    [markEntered, onToggleCard],
+  );
 
   return (
     <div id="game-area" style={{ display: 'flex' }}>
@@ -48,7 +62,7 @@ export function GameArea({
                   key={i}
                   card={card}
                   variant="selected"
-                  onClick={() => onToggleCard(i)}
+                  onClick={() => handleToggle(i)}
                 />
               ),
           )}
@@ -68,7 +82,7 @@ export function GameArea({
                   index={i}
                   entered={enteredIndices.has(i)}
                   onEntered={markEntered}
-                  onClick={() => onToggleCard(i)}
+                  onClick={() => handleToggle(i)}
                 />
               ),
           )}

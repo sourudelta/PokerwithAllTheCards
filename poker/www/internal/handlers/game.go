@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"sync"
@@ -13,7 +14,8 @@ type Room struct {
 	ID      string
 	Players []*Player
 	Mutex   sync.Mutex
-	Round   int // 現在のラウンド
+	Round   int           // 現在のラウンド
+	Deck    []models.Card // 両プレイヤーで共有する山札
 }
 
 type Player struct {
@@ -85,6 +87,7 @@ func HandleConnections(w http.ResponseWriter, r *http.Request) {
 			// プレイヤーが揃ったらゲーム開始
 			if len(room.Players) == 2 {
 				room.Round = 1
+				room.Deck = models.ShuffleDeck(models.CreateDeck()) // 両者共有の山札を新しく用意
 				log.Println(room.Round)
 				room.distributeCards()
 			}
@@ -189,22 +192,68 @@ func (r *Room) removePlayer(player *Player) {
 	}
 }
 
-// プレイヤーにカードを配布
-func (r *Room) distributeCards() {
-	deck := models.ShuffleDeck(models.CreateDeck()) // 共通デッキを作成・シャッフル
-	cardIndex := 0
+// カードを一意に識別するためのキー
+func cardKey(c models.Card) string {
+	return fmt.Sprintf("%s-%d", c.Suit, c.Value)
+}
 
+// 選択(提出)されなかったカードを求める
+func subtractCards(cards, selected []models.Card) []models.Card {
+	selectedKeys := make(map[string]int)
+	for _, c := range selected {
+		selectedKeys[cardKey(c)]++
+	}
+
+	var remaining []models.Card
+	for _, c := range cards {
+		key := cardKey(c)
+		if selectedKeys[key] > 0 {
+			selectedKeys[key]--
+			continue
+		}
+		remaining = append(remaining, c)
+	}
+	return remaining
+}
+
+// 共有デッキからまだ配られていないカードをn枚引く。
+// デッキ側は消費済みとしてHandedを立てるが、そのプレイヤーにとっては初めて手元に来るカードなので、
+// 返す値はHanded=falseのままにして配布アニメーションの対象にする。
+func (r *Room) drawCards(n int) []models.Card {
+	var drawn []models.Card
+	for i := range r.Deck {
+		if len(drawn) >= n {
+			break
+		}
+		if !r.Deck[i].Handed {
+			r.Deck[i].Handed = true
+			card := r.Deck[i]
+			card.Handed = false
+			drawn = append(drawn, card)
+		}
+	}
+	return drawn
+}
+
+// プレイヤーにカードを配布(出さなかったカードはそのまま保持し、不足分のみ共有デッキから新しく配る)
+func (r *Room) distributeCards() {
 	r.Mutex.Lock()
 	defer r.Mutex.Unlock()
 
 	for _, p := range r.Players {
-		if cardIndex+p.Handlimit > len(deck) {
-			log.Println("Not enough cards to distribute.")
+		needed := p.Handlimit - len(p.RemainingCards)
+		if needed < 0 {
+			needed = 0
+		}
+
+		newCards := r.drawCards(needed)
+		if len(newCards) < needed {
+			log.Println("Not enough cards left in the deck to distribute.")
 			return
 		}
-		log.Println(p.Handlimit)
-		p.Cards = deck[cardIndex : cardIndex+p.Handlimit] // 各プレイヤーの HandLimit 分を配布
-		cardIndex += p.Handlimit                          // デッキの次の位置に移動
+
+		p.Cards = append(append([]models.Card{}, p.RemainingCards...), newCards...)
+		p.RemainingCards = nil
 
 		// クライアントにカードを送信
 		err := p.Conn.WriteJSON(map[string]interface{}{
@@ -240,6 +289,10 @@ func (r *Room) handlePlayerMessages(player *Player) bool {
 func (r *Room) handleReadyState(player *Player, selected []models.Card) {
 	player.Ready = true
 	player.Selected = selected
+	player.RemainingCards = subtractCards(player.Cards, selected) // 出さなかったカードを次ラウンド用に保持
+	for i := range player.RemainingCards {
+		player.RemainingCards[i].Handed = true // 既にクライアントへ見せたことがあるカードなので次回はアニメーションさせない
+	}
 
 	if r.allPlayersReady() {
 
