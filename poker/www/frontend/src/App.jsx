@@ -18,6 +18,7 @@ export default function App() {
   const [score, setScore] = useState({ win: 0, loss: 0, draw: 0 });
   const [roundMessage, setRoundMessage] = useState(null);
   const [showFinal, setShowFinal] = useState(false);
+  const [waitingForNextRound, setWaitingForNextRound] = useState(false);
 
   const localPlayerNameRef = useRef('');
 
@@ -33,6 +34,8 @@ export default function App() {
         setSelectedIndices(new Set());
         setConfirmed(false);
         setPhase('game');
+        setWaitingForNextRound(false);
+        setRoundMessage(null); // 新しい手札が届いたので結果モーダルを閉じる
         return;
 
       case 'update':
@@ -91,8 +94,8 @@ export default function App() {
   };
 
   const handleNextRound = () => {
-    setRoundMessage(null);
-    setYourCards([]);
+    setWaitingForNextRound(true);
+    setYourCards((prev) => prev.filter((_, i) => !selectedIndices.has(i)));
     setOpponentCards([]);
     setSelectedIndices(new Set());
     setConfirmed(false);
@@ -118,7 +121,11 @@ export default function App() {
       )}
 
       {roundMessage !== null && (
-        <RoundResultModal message={roundMessage} onNext={handleNextRound} />
+        <RoundResultModal
+          message={roundMessage}
+          onNext={handleNextRound}
+          nextDisabled={waitingForNextRound}
+        />
       )}
 
       {showFinal && (

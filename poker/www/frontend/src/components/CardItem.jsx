@@ -3,18 +3,20 @@ import { SPECIAL_CARDS } from '../data/specialCards';
 
 // variant: "hand"(自分の手札・配布アニメーションあり) | "selected"(選択済み) | "opponent"(相手のカード)
 // entered: 手札としてこのindexが配布アニメーションを再生済みかどうか(選択解除で戻ってきた時に再生しないため親から渡す)
+// card.Handed: サーバー側で既に配布済み(前ラウンドから持ち越し)のカードかどうか。trueなら配布アニメーションをスキップする
 export function CardItem({ card, index = 0, variant, onClick, entered: enteredProp = false, onEntered }) {
   const isHand = variant === 'hand';
-  const [entered, setEntered] = useState(!isHand || enteredProp);
+  const skipEnterAnimation = enteredProp || card.Handed;
+  const [entered, setEntered] = useState(!isHand || skipEnterAnimation);
 
   useEffect(() => {
-    if (!isHand || enteredProp) return;
+    if (!isHand || skipEnterAnimation) return;
     const timer = setTimeout(() => {
       setEntered(true);
       onEntered?.(index);
     }, index * 200);
     return () => clearTimeout(timer);
-  }, [isHand, index, enteredProp, onEntered]);
+  }, [isHand, index, skipEnterAnimation, onEntered]);
 
   const special = SPECIAL_CARDS[card.Value];
   const baseURL = `${location.protocol}//${location.host}/`;

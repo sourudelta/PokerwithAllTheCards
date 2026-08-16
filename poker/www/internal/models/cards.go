@@ -13,6 +13,7 @@ type Card struct {
 	Image     string `json:"image"` // カード画像のファイルパス
 	IsSpecial bool   // 特殊カードかどうか
 	Effect    string // 特殊カードの効果名
+	Handed    bool   // 配られたかどうか
 }
 
 // デッキを生成する関数
