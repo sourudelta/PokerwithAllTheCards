@@ -157,7 +157,7 @@ func (r *Room) addPlayer(player *Player) bool {
 		log.Printf("Room %s is full. Player %s cannot join.", r.ID, player.Name)
 		_ = player.Conn.WriteJSON(map[string]interface{}{
 			"type":    "error",
-			"message": "Room is full.",
+			"message": "ルームはすでに満員です。",
 		})
 		return false
 	}
@@ -168,7 +168,7 @@ func (r *Room) addPlayer(player *Player) bool {
 			log.Printf("Player name %s already exists in room %s.", player.Name, r.ID)
 			_ = player.Conn.WriteJSON(map[string]interface{}{
 				"type":    "error",
-				"message": "Username is already taken in this room.",
+				"message": "すでに同じ名前のプレイヤーが存在します。",
 			})
 			return false
 		}

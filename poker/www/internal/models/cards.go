@@ -153,10 +153,10 @@ func CompareHands(player1Name string, player1Selected []Card, player2Name string
 
 	// どちらかのプレイヤーが手札を持っていない場合の処理
 	if len(player1Selected) == 0 && len(player2Selected) > 0 {
-		return fmt.Sprintf("%s Wins (opponent has no cards)", player2Name)
+		return fmt.Sprintf("%s Wins (カードがありません)", player2Name)
 	}
 	if len(player2Selected) == 0 && len(player1Selected) > 0 {
-		return fmt.Sprintf("%s Wins (opponent has no cards)", player1Name)
+		return fmt.Sprintf("%s Wins (カードがありません)", player1Name)
 	}
 	if len(player1Selected) == 0 && len(player2Selected) == 0 {
 		return "It's a Draw (both players have no cards)"
