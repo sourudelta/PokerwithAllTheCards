@@ -1,10 +1,12 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { useGameSocket } from './hooks/useGameSocket';
+import { useResultPhase } from './hooks/useResultPhase';
 import { JoinScreen } from './components/JoinScreen';
 import { GameArea } from './components/GameArea';
 import { RoundResultModal } from './components/RoundResultModal';
 import { FinalResultModal } from './components/FinalResultModal';
+import { getHandName } from './utils/handEvaluator';
 
 const MAX_ROUNDS = 5;
 
@@ -19,8 +21,21 @@ export default function App() {
   const [roundMessage, setRoundMessage] = useState(null);
   const [showFinal, setShowFinal] = useState(false);
   const [waitingForNextRound, setWaitingForNextRound] = useState(false);
+  const [lastOutcome, setLastOutcome] = useState(null); // 直近ラウンドの結果 ('win' | 'loss' | 'draw')
 
   const localPlayerNameRef = useRef('');
+
+  const resultPhase = useResultPhase(roundMessage !== null, opponentCards.length);
+  const yourPlayedCards = yourCards.filter((_, i) => selectedIndices.has(i));
+  const showYourHand = resultPhase === 'yourHand' || resultPhase === 'opponentHand' || resultPhase === 'modal';
+  const showOpponentHand = resultPhase === 'opponentHand' || resultPhase === 'modal';
+
+  // 結果モーダルが実際に表示されるタイミング(演出完了後)まで紙吹雪を遅らせる
+  useEffect(() => {
+    if (resultPhase === 'modal' && lastOutcome === 'win') {
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+    }
+  }, [resultPhase, lastOutcome]);
 
   const handleMessage = useCallback((message) => {
     switch (message.type) {
@@ -46,11 +61,13 @@ export default function App() {
         const resultMessage = message.result;
         if (resultMessage.includes('Draw')) {
           setScore((s) => ({ ...s, draw: s.draw + 1 }));
+          setLastOutcome('draw');
         } else if (resultMessage.includes(localPlayerNameRef.current)) {
           setScore((s) => ({ ...s, win: s.win + 1 }));
-          confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+          setLastOutcome('win');
         } else {
           setScore((s) => ({ ...s, loss: s.loss + 1 }));
+          setLastOutcome('loss');
         }
 
         setRound(message.round);
@@ -117,10 +134,12 @@ export default function App() {
           onToggleCard={toggleCard}
           onConfirm={handleConfirm}
           confirmDisabled={confirmed || selectedIndices.size !== 5}
+          yourHandName={showYourHand ? getHandName(yourPlayedCards) : null}
+          opponentHandName={showOpponentHand ? getHandName(opponentCards) : null}
         />
       )}
 
-      {roundMessage !== null && (
+      {resultPhase === 'modal' && (
         <RoundResultModal
           message={roundMessage}
           onNext={handleNextRound}

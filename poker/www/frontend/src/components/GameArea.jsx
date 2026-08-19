@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CardItem } from './CardItem';
+import { HandNameTag } from './HandNameTag';
+import { FLIP_STAGGER } from '../constants/animation';
 
 export function GameArea({
   round,
@@ -9,6 +11,8 @@ export function GameArea({
   onToggleCard,
   onConfirm,
   confirmDisabled,
+  yourHandName,
+  opponentHandName,
 }) {
   // 配布アニメーションを再生済みのindex集合。新しい手札が配られたらリセットする
   const [enteredIndices, setEnteredIndices] = useState(new Set());
@@ -45,9 +49,10 @@ export function GameArea({
 
       <div className="player-area">
         <h2>相手のカード</h2>
+        {opponentHandName && <HandNameTag label="相手の役" name={opponentHandName} />}
         <div id="opponent-cards" className="card-row">
           {opponentCards.map((card, i) => (
-            <CardItem key={i} card={card} variant="opponent" />
+            <CardItem key={i} card={card} variant="opponent" flipDelay={i * FLIP_STAGGER} />
           ))}
         </div>
       </div>
@@ -67,6 +72,7 @@ export function GameArea({
               ),
           )}
         </div>
+        {yourHandName && <HandNameTag label="あなたの役" name={yourHandName} />}
       </div>
 
       <div className="player-area">
