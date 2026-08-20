@@ -68,7 +68,7 @@ func HandleConnections(w http.ResponseWriter, r *http.Request) {
 		case "join":
 			// プレイヤー作成
 			player = &Player{Conn: conn, Ready: false, Name: msg.Name}
-			player.Handlimit = 8
+			player.Handlimit = 7
 			// ルーム取得または作成
 			room = getOrCreateRoom(msg.RoomID)
 			// プレイヤー追加が成功したか確認
