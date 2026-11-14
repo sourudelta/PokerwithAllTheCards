@@ -11,11 +11,12 @@ import (
 )
 
 type Room struct {
-	ID      string
-	Players []*Player
-	Mutex   sync.Mutex
-	Round   int           // 現在のラウンド
-	Deck    []models.Card // 両プレイヤーで共有する山札
+	ID              string
+	Players         []*Player
+	Mutex           sync.Mutex
+	Round           int           // 現在のラウンド
+	Deck            []models.Card // 両プレイヤーで共有する山札
+	DestroyedPlayer *Player       // 直前のラウンドでdestroy_opponent_cardsにより手札を破壊されたプレイヤー(通知用、broadcastSelections内で消費してnilに戻す)
 }
 
 type Player struct {
@@ -328,8 +329,12 @@ func (r *Room) broadcastSelections() {
 			"type":     "update",
 			"opponent": opponent.Selected, // 相手の選択カードを送信
 		}
+		if r.DestroyedPlayer != nil && r.DestroyedPlayer == opponent {
+			data["effect"] = "destroy_opponent_cards"
+		}
 		p.Conn.WriteJSON(data)
 	}
+	r.DestroyedPlayer = nil
 }
 
 // 相手プレイヤーを取得
@@ -352,9 +357,13 @@ func (r *Room) handleGameLogic() {
 		player1 := r.Players[0]
 		player2 := r.Players[1]
 
-		player1.Selected, player2.Selected = applySpecialEffects(player1, player2, player1.Selected, player2.Selected, player1.Name, player2.Name)
+		// 勝敗判定だけに使う「効果適用後」の手札。player.Selectedは公開(リビール)用に
+		// 本来選んだカードのまま残しておき、破壊演出をクライアント側で見せてから消える形にする。
+		effectiveP1Cards, effectiveP2Cards, destroyedPlayer := applySpecialEffects(player1, player2, player1.Selected, player2.Selected, player1.Name, player2.Name)
+		r.DestroyedPlayer = destroyedPlayer
+
 		// 選択したカードの比較処理
-		result := models.CompareHands(player1.Name, player1.Selected, player2.Name, player2.Selected)
+		result := models.CompareHands(player1.Name, effectiveP1Cards, player2.Name, effectiveP2Cards)
 
 		if result == player1.Name {
 			player1.Score++
@@ -381,8 +390,9 @@ func (r *Room) handleGameLogic() {
 	}
 }
 
-// 特殊カードの効果を適用する関数
-func applySpecialEffects(Player1, Player2 *Player, player1Cards, player2Cards []models.Card, player1Name, player2Name string) ([]models.Card, []models.Card) {
+// 特殊カードの効果を適用する関数。戻り値は勝敗判定専用の手札で、player.Selected自体は書き換えない
+// (リビール表示は本来選んだカードのまま行い、破壊されたことはdestroyedPlayerの戻り値で別途通知する)。
+func applySpecialEffects(Player1, Player2 *Player, player1Cards, player2Cards []models.Card, player1Name, player2Name string) ([]models.Card, []models.Card, *Player) {
 	// ステップ1: 無効化処理（cancel_opponent_special）
 	for _, card := range player1Cards {
 		if card.IsSpecial && card.Effect == "cancel_opponent_special" {
@@ -429,18 +439,18 @@ func applySpecialEffects(Player1, Player2 *Player, player1Cards, player2Cards []
 	for _, card := range player1Cards {
 		if card.IsSpecial && card.Effect == "destroy_opponent_cards" {
 			log.Printf("%s activated destroy_opponent_cards! Opponent's cards are destroyed.", player1Name)
-			return player1Cards, []models.Card{} // 相手のカードを全て破壊
+			return player1Cards, []models.Card{}, Player2 // 勝敗判定上は相手の手札を空扱いにする
 		}
 	}
 	for _, card := range player2Cards {
 		if card.IsSpecial && card.Effect == "destroy_opponent_cards" {
 			log.Printf("%s activated destroy_opponent_cards! Opponent's cards are destroyed.", player2Name)
-			return []models.Card{}, player2Cards // 相手のカードを全て破壊
+			return []models.Card{}, player2Cards, Player1 // 勝敗判定上は相手の手札を空扱いにする
 		}
 	}
 
-	// 特殊効果を適用した後のカードを返す
-	return player1Cards, player2Cards
+	// 特殊効果を適用した後のカードを返す(発動なし)
+	return player1Cards, player2Cards, nil
 }
 
 // プレイヤー状態をリセット

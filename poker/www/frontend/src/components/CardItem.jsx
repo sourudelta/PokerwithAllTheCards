@@ -3,12 +3,13 @@ import { motion } from 'motion/react';
 import { SPECIAL_CARDS } from '../data/specialCards';
 import { FLIP_DURATION } from '../constants/animation';
 
-const CARD_BACK_IMAGE = 'images/Back4.png';
+export const CARD_BACK_IMAGE = 'images/Back4.png';
 
 // variant: "hand"(自分の手札・配布アニメーションあり) | "selected"(選択済み) | "opponent"(相手のカード)
 // entered: 手札としてこのindexが配布アニメーションを再生済みかどうか(選択解除で戻ってきた時に再生しないため親から渡す)
 // card.Handed: サーバー側で既に配布済み(前ラウンドから持ち越し)のカードかどうか。trueなら配布アニメーションをスキップする
 // flipDelay: 相手の出したカード限定。結果発表時に1枚ずつめくれる演出の開始遅延(秒)
+// burning: destroy_opponent_cards発動時、このカードが焦げて消える演出中かどうか(相手のカード限定)
 export function CardItem({
   card,
   index = 0,
@@ -17,6 +18,7 @@ export function CardItem({
   entered: enteredProp = false,
   onEntered,
   flipDelay = 0.5,
+  burning = false,
 }) {
   const isHand = variant === 'hand';
   const isOpponent = variant === 'opponent';
@@ -36,8 +38,10 @@ export function CardItem({
   const baseURL = `${location.protocol}//${location.host}/`;
 
   if (isOpponent) {
+    const opponentClassNames = ['card', 'animate', 'card--flip'];
+    if (burning) opponentClassNames.push('card--burning');
     return (
-      <div className="card animate card--flip" onClick={onClick}>
+      <div className={opponentClassNames.join(' ')} onClick={onClick}>
         {special && <div className="tooltip">効果: {special.effect}</div>}
         <motion.div
           className="flip-card-inner"
