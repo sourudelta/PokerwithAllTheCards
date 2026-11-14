@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"www/internal/models"
 
 	"github.com/gorilla/websocket"
@@ -17,10 +18,12 @@ type Room struct {
 	Round           int           // 現在のラウンド
 	Deck            []models.Card // 両プレイヤーで共有する山札
 	DestroyedPlayer *Player       // 直前のラウンドでdestroy_opponent_cardsにより手札を破壊されたプレイヤー(通知用、broadcastSelections内で消費してnilに戻す)
+	Matched         bool          // ランダムマッチングで作成されたルームか(ID指定での参加不可)
 }
 
 type Player struct {
-	Conn           *websocket.Conn
+	Conn           *websocket.Conn // 受信専用。送信は必ずclient.send()を使う(同時書き込み防止)
+	client         *wsClient
 	Cards          []models.Card
 	Ready          bool
 	Selected       []models.Card
@@ -28,6 +31,7 @@ type Player struct {
 	Name           string        // プレイヤー名
 	Score          int           // ラウンド勝利数を管理
 	Handlimit      int
+	room           atomic.Pointer[Room] // 所属ルーム(マッチメイカーのgoroutineから設定されるためatomicで保持)
 }
 
 var (
@@ -36,17 +40,32 @@ var (
 )
 
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
+	CheckOrigin: checkOrigin,
+}
+
+func sendError(c *wsClient, message string) {
+	c.send(map[string]interface{}{"type": "error", "message": message})
 }
 
 // WebSocket接続を処理
 func HandleConnections(w http.ResponseWriter, r *http.Request) {
+	ip := clientIP(r)
+	if !ipLimits.acquireConn(ip) {
+		log.Printf("Too many connections from %s", ip)
+		http.Error(w, "too many connections", http.StatusTooManyRequests)
+		return
+	}
+	defer ipLimits.releaseConn(ip)
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Error upgrading connection:", err)
 		return
 	}
-	defer conn.Close()
+	configureReader(conn)
+	client := newWSClient(conn)
+	defer client.close()
+	limiter := newRateLimiter()
 
 	var player *Player
 	var room *Room
@@ -64,22 +83,80 @@ func HandleConnections(w http.ResponseWriter, r *http.Request) {
 			log.Println("Error reading JSON:", err)
 			break
 		}
+		if !limiter.allow() {
+			log.Printf("Message rate exceeded from %s, closing", ip)
+			break
+		}
+
+		// ランダムマッチングで成立したルームはマッチメイカー側で紐づけられるので、ここで拾う
+		if room == nil && player != nil {
+			room = player.room.Load()
+		}
 
 		switch msg.Type {
+		case "queue.join":
+			// ランダムマッチングの待機キューへ登録(成立判定はマッチメイカーが行う)
+			if player != nil {
+				log.Println("queue.join ignored: player already joined or queued")
+				break
+			}
+			name, ok := validateName(msg.Name)
+			if !ok {
+				sendError(client, fmt.Sprintf("プレイヤー名は%d文字以内で入力してください。", maxNameLength))
+				break
+			}
+			if !ipLimits.allowQueueJoin(ip) {
+				sendError(client, "マッチングの試行回数が多すぎます。しばらく待ってからお試しください。")
+				break
+			}
+			player = &Player{Conn: conn, client: client, Ready: false, Name: name, Handlimit: 7}
+			client.send(map[string]interface{}{"type": "queue.joined"})
+			waitingQueue.enqueue(player)
+			log.Printf("Player %q entered matchmaking queue", name)
+
+		case "queue.leave":
+			// まだマッチングされていなければキューから外す。成立済みなら何もしない(そのままゲーム開始)
+			if player != nil && room == nil && waitingQueue.cancel(player) {
+				log.Printf("Player %q left matchmaking queue", player.Name)
+				player = nil
+				client.send(map[string]interface{}{"type": "queue.left"})
+			}
+
 		case "join":
-			// プレイヤー作成
-			player = &Player{Conn: conn, Ready: false, Name: msg.Name}
-			player.Handlimit = 7
+			if player != nil {
+				log.Println("join ignored: player already joined or queued")
+				break
+			}
+			name, ok := validateName(msg.Name)
+			if !ok {
+				sendError(client, fmt.Sprintf("プレイヤー名は%d文字以内で入力してください。", maxNameLength))
+				break
+			}
+			if !validateRoomID(msg.RoomID) {
+				sendError(client, fmt.Sprintf("ルームIDは%d文字以内で入力してください。", maxRoomIDLength))
+				break
+			}
 			// ルーム取得または作成
 			room = getOrCreateRoom(msg.RoomID)
+			if room.Matched {
+				// ランダムマッチング用のルームにはID指定で参加させない
+				sendError(client, "このルームIDは使用できません。")
+				room = nil
+				break
+			}
+			// プレイヤー作成
+			p := &Player{Conn: conn, client: client, Ready: false, Name: name, Handlimit: 7}
 			// プレイヤー追加が成功したか確認
-			if !room.addPlayer(player) {
+			if !room.addPlayer(p) {
+				room = nil
 				break // ルームが満員なら処理を中断
 			}
-			log.Printf("Player %s joined room %s", msg.Name, msg.RoomID)
+			player = p
+			player.room.Store(room)
+			log.Printf("Player %q joined room %q", name, msg.RoomID)
 
 			// 必要ならクライアントに確認メッセージを送信
-			conn.WriteJSON(map[string]interface{}{
+			client.send(map[string]interface{}{
 				"type":    "joined",
 				"room_id": msg.RoomID,
 				"message": "Successfully joined room",
@@ -108,13 +185,10 @@ func HandleConnections(w http.ResponseWriter, r *http.Request) {
 					room.distributeCards()   // 新しいカードを配布
 					// クライアントにリスタートを通知
 					for _, p := range room.Players {
-						err := p.Conn.WriteJSON(map[string]interface{}{
+						p.client.send(map[string]interface{}{
 							"type":    "restart",
 							"message": "Game has been restarted.",
 						})
-						if err != nil {
-							log.Println("Error sending restart notification:", err)
-						}
 					}
 				}
 			}
@@ -122,17 +196,29 @@ func HandleConnections(w http.ResponseWriter, r *http.Request) {
 
 	}
 
-	for {
+	if player != nil {
+		// 待機中に切断された場合はキューから外す(対象がいなければ何もしない)
+		waitingQueue.cancel(player)
+		if room == nil {
+			room = player.room.Load()
+		}
+	}
+
+	for room != nil && player != nil {
 		// プレイヤーのメッセージを処理
 		if !room.handlePlayerMessages(player) {
 			break
 		}
 	}
 
-	// 切断時にルームからプレイヤーを削除
+	// 切断時にルームからプレイヤーを削除し、残ったプレイヤーへ通知する
 	if room != nil && player != nil {
-		room.removePlayer(player)
+		remaining := room.removePlayer(player)
 		log.Printf("Player disconnected from room %s", room.ID)
+		for _, p := range remaining {
+			p.client.send(map[string]interface{}{"type": "opponent_left"})
+		}
+		releaseMatchedRoomIfEmpty(room)
 	}
 }
 
@@ -156,7 +242,7 @@ func (r *Room) addPlayer(player *Player) bool {
 
 	if len(r.Players) >= 2 {
 		log.Printf("Room %s is full. Player %s cannot join.", r.ID, player.Name)
-		_ = player.Conn.WriteJSON(map[string]interface{}{
+		player.client.send(map[string]interface{}{
 			"type":    "error",
 			"message": "ルームはすでに満員です。",
 		})
@@ -167,7 +253,7 @@ func (r *Room) addPlayer(player *Player) bool {
 	for _, p := range r.Players {
 		if p.Name == player.Name {
 			log.Printf("Player name %s already exists in room %s.", player.Name, r.ID)
-			_ = player.Conn.WriteJSON(map[string]interface{}{
+			player.client.send(map[string]interface{}{
 				"type":    "error",
 				"message": "すでに同じ名前のプレイヤーが存在します。",
 			})
@@ -180,8 +266,8 @@ func (r *Room) addPlayer(player *Player) bool {
 	return true
 }
 
-// ルームからプレイヤーを削除
-func (r *Room) removePlayer(player *Player) {
+// ルームからプレイヤーを削除し、残ったプレイヤーの一覧を返す
+func (r *Room) removePlayer(player *Player) []*Player {
 	r.Mutex.Lock()
 	defer r.Mutex.Unlock()
 
@@ -191,6 +277,7 @@ func (r *Room) removePlayer(player *Player) {
 			break
 		}
 	}
+	return append([]*Player{}, r.Players...)
 }
 
 // カードを一意に識別するためのキー
@@ -257,13 +344,10 @@ func (r *Room) distributeCards() {
 		p.RemainingCards = nil
 
 		// クライアントにカードを送信
-		err := p.Conn.WriteJSON(map[string]interface{}{
+		p.client.send(map[string]interface{}{
 			"type":  "cards",
 			"cards": p.Cards,
 		})
-		if err != nil {
-			log.Println("Error sending cards:", err)
-		}
 	}
 }
 
@@ -332,7 +416,7 @@ func (r *Room) broadcastSelections() {
 		if r.DestroyedPlayer != nil && r.DestroyedPlayer == opponent {
 			data["effect"] = "destroy_opponent_cards"
 		}
-		p.Conn.WriteJSON(data)
+		p.client.send(data)
 	}
 	r.DestroyedPlayer = nil
 }
@@ -378,14 +462,11 @@ func (r *Room) handleGameLogic() {
 
 		// 結果をクライアントに送信
 		for _, p := range r.Players {
-			err := p.Conn.WriteJSON(map[string]interface{}{
+			p.client.send(map[string]interface{}{
 				"type":   "result",
 				"result": result,
 				"round":  r.Round,
 			})
-			if err != nil {
-				log.Println("Error sending result:", err)
-			}
 		}
 	}
 }

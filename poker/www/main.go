@@ -1,12 +1,17 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"os"
+	"time"
 	"www/internal/handlers"
 )
 
 func main() {
+	// ランダムマッチングのマッチメイカーを起動(500msごとに待機キューを確認)
+	handlers.StartMatchmaker(context.Background(), 500*time.Millisecond)
+
 	// 静的ファイルサーバーの設定
 	fs := http.FileServer(http.Dir("./public"))
 	http.Handle("/", fs)
