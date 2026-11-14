@@ -5,6 +5,7 @@ import { FLIP_STAGGER } from '../constants/animation';
 import { CardDestroyEffect } from '../effects/CardDestroyEffect';
 
 export function GameArea({
+  roomId,
   round,
   yourCards,
   opponentCards,
@@ -65,6 +66,11 @@ export function GameArea({
   return (
     <div id="game-area" style={{ display: 'flex' }}>
       <div id="game-stats" style={{ display: 'block' }}>
+        {roomId && (
+          <p>
+            ルームID: <span id="room-id">{roomId}</span>
+          </p>
+        )}
         <p>
           ラウンド数: <span id="round-count">{round}</span>
         </p>

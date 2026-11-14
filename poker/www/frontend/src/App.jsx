@@ -14,6 +14,8 @@ const MAX_ROUNDS = 5;
 
 export default function App() {
   const [phase, setPhase] = useState('join'); // join | searching | game
+  const [searchMode, setSearchMode] = useState(null); // searching中のみ 'room' | 'random'
+  const [roomId, setRoomId] = useState('');
   const [yourCards, setYourCards] = useState([]);
   const [opponentCards, setOpponentCards] = useState([]);
   const [selectedIndices, setSelectedIndices] = useState(new Set());
@@ -31,6 +33,10 @@ export default function App() {
   // handleMessage は依存配列が空なので、最新の phase を ref で参照する
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
+  const showFinalRef = useRef(showFinal);
+  showFinalRef.current = showFinal;
+  // 切断系の通知(opponent_left / connection_closed)は重複して届くことがあるので1回だけ処理する
+  const leavingRef = useRef(false);
 
   const resultPhase = useResultPhase(roundMessage !== null, opponentCards.length);
   const yourPlayedCards = yourCards.filter((_, i) => selectedIndices.has(i));
@@ -56,6 +62,36 @@ export default function App() {
     switch (message.type) {
       case 'error':
         alert(message.message);
+        // 参加に失敗した場合は入力画面に戻す
+        if (phaseRef.current === 'searching') {
+          setPhase('join');
+          setSearchMode(null);
+        }
+        return;
+
+      case 'queue.left':
+        setPhase('join');
+        setSearchMode(null);
+        return;
+
+      case 'opponent_left':
+      case 'connection_closed': {
+        // 最終結果を表示済みなら、その後の切断は案内しない
+        if (leavingRef.current || showFinalRef.current) return;
+        leavingRef.current = true;
+        alert(
+          message.type === 'opponent_left'
+            ? '対戦相手が切断しました。最初の画面に戻ります。'
+            : 'サーバーとの接続が切れました。最初の画面に戻ります。'
+        );
+        // 接続・ゲーム状態をまとめて初期化するため再読み込みする
+        location.reload();
+        return;
+      }
+
+      case 'match_found':
+        // この直後に'cards'が届き、画面遷移の演出とともにゲーム画面へ切り替わる
+        setRoomId(message.room_id);
         return;
 
       case 'cards': {
@@ -110,10 +146,24 @@ export default function App() {
 
   const send = useGameSocket(handleMessage);
 
-  const handleJoin = (roomId, name) => {
+  const handleJoin = (inputRoomId, name) => {
     localPlayerNameRef.current = name;
-    send({ type: 'join', room_id: roomId, name });
+    send({ type: 'join', room_id: inputRoomId, name });
+    setRoomId(inputRoomId);
     setPhase('searching');
+    setSearchMode('room');
+  };
+
+  const handleRandomMatch = (name) => {
+    localPlayerNameRef.current = name;
+    send({ type: 'queue.join', name });
+    setPhase('searching');
+    setSearchMode('random');
+  };
+
+  // キャンセル完了はサーバーからの'queue.left'で画面に反映する(行き違いで成立済みならそのままゲーム開始)
+  const handleCancelMatch = () => {
+    send({ type: 'queue.leave' });
   };
 
   const toggleCard = (index) => {
@@ -146,11 +196,17 @@ export default function App() {
   return (
     <>
       {phase !== 'game' && (
-        <JoinScreen searching={phase === 'searching'} onJoin={handleJoin} />
+        <JoinScreen
+          searching={phase === 'searching' ? searchMode : null}
+          onJoin={handleJoin}
+          onRandomMatch={handleRandomMatch}
+          onCancelMatch={handleCancelMatch}
+        />
       )}
 
       {phase === 'game' && (
         <GameArea
+          roomId={roomId}
           round={round}
           yourCards={yourCards}
           opponentCards={opponentCards}
