@@ -7,6 +7,8 @@ import { GameArea } from './components/GameArea';
 import { RoundResultModal } from './components/RoundResultModal';
 import { FinalResultModal } from './components/FinalResultModal';
 import { getHandName } from './utils/handEvaluator';
+import { runViewTransition } from './components/navigationTransition';
+
 
 const MAX_ROUNDS = 5;
 
@@ -26,6 +28,9 @@ export default function App() {
   const [pendingDestroyEffect, setPendingDestroyEffect] = useState(false);
 
   const localPlayerNameRef = useRef('');
+  // handleMessage は依存配列が空なので、最新の phase を ref で参照する
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
 
   const resultPhase = useResultPhase(roundMessage !== null, opponentCards.length);
   const yourPlayedCards = yourCards.filter((_, i) => selectedIndices.has(i));
@@ -53,15 +58,21 @@ export default function App() {
         alert(message.message);
         return;
 
-      case 'cards':
-        setYourCards(message.cards);
-        setOpponentCards([]);
-        setSelectedIndices(new Set());
-        setConfirmed(false);
-        setPhase('game');
-        setWaitingForNextRound(false);
-        setRoundMessage(null); // 新しい手札が届いたので結果モーダルを閉じる
+      case 'cards': {
+        const applyCards = () => {
+          setYourCards(message.cards);
+          setOpponentCards([]);
+          setSelectedIndices(new Set());
+          setConfirmed(false);
+          setPhase('game');
+          setWaitingForNextRound(false);
+          setRoundMessage(null); // 新しい手札が届いたので結果モーダルを閉じる
+        };
+
+        runViewTransition(applyCards);
+        
         return;
+      }
 
       case 'update':
         setOpponentCards(message.opponent);
@@ -168,6 +179,9 @@ export default function App() {
           drawCount={score.draw}
         />
       )}
+
+      {/* マッチング成立時の画面遷移用の幕(通常時は画面外に待機) */}
+      <div id="stage-curtain" aria-hidden="true" />
     </>
   );
 }
