@@ -20,6 +20,8 @@ export function CardItem({
   flipDelay = 0.5,
   burning = false,
 }) {
+  // 配布アニメーションの開始タイミングをずらす定数
+  const DistributionInterval = 300;
   const isHand = variant === 'hand';
   const isOpponent = variant === 'opponent';
   const skipEnterAnimation = enteredProp || card.Handed;
@@ -30,7 +32,7 @@ export function CardItem({
     const timer = setTimeout(() => {
       setEntered(true);
       onEntered?.(index);
-    }, index * 200);
+    }, index * DistributionInterval);
     return () => clearTimeout(timer);
   }, [isHand, index, skipEnterAnimation, onEntered]);
 
