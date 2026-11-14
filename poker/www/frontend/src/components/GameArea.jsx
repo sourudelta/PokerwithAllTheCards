@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CardItem } from './CardItem';
 import { HandNameTag } from './HandNameTag';
 import { FLIP_STAGGER } from '../constants/animation';
+import { CardDestroyEffect } from '../effects/CardDestroyEffect';
 
 export function GameArea({
   round,
@@ -13,6 +14,7 @@ export function GameArea({
   confirmDisabled,
   yourHandName,
   opponentHandName,
+  destroyEffectTrigger,
 }) {
   // 配布アニメーションを再生済みのindex集合。新しい手札が配られたらリセットする
   const [enteredIndices, setEnteredIndices] = useState(new Set());
@@ -20,6 +22,27 @@ export function GameArea({
   useEffect(() => {
     setEnteredIndices(new Set());
   }, [yourCards]);
+
+  // destroy_opponent_cards演出。着弾(onIgnite)したカードのindexへ.card--burningを付与する
+  const opponentRowRef = useRef(null);
+  const opponentCardElsRef = useRef({});
+  const [burningIndices, setBurningIndices] = useState(() => new Set());
+
+  useEffect(() => {
+    setBurningIndices(new Set());
+  }, [opponentCards]);
+
+  const setOpponentCardEl = useCallback(
+    (i) => (el) => {
+      if (el) opponentCardElsRef.current[i] = el;
+      else delete opponentCardElsRef.current[i];
+    },
+    [],
+  );
+
+  const handleIgnite = useCallback((id) => {
+    setBurningIndices((prev) => new Set(prev).add(Number(id)));
+  }, []);
 
   // useCallbackで参照を固定する。ここが再レンダリングのたびに新しい関数になると、
   // CardItem側のuseEffect(依存配列にonEnteredを含む)が毎回再実行されてタイマーが
@@ -50,10 +73,23 @@ export function GameArea({
       <div className="player-area">
         <h2>相手のカード</h2>
         {opponentHandName && <HandNameTag label="相手の役" name={opponentHandName} />}
-        <div id="opponent-cards" className="card-row">
+        <div id="opponent-cards" className="card-row" style={{ position: 'relative' }} ref={opponentRowRef}>
           {opponentCards.map((card, i) => (
-            <CardItem key={i} card={card} variant="opponent" flipDelay={i * FLIP_STAGGER} />
+            <div key={i} ref={setOpponentCardEl(i)}>
+              <CardItem
+                card={card}
+                variant="opponent"
+                flipDelay={i * FLIP_STAGGER}
+                burning={burningIndices.has(i)}
+              />
+            </div>
           ))}
+          <CardDestroyEffect
+            trigger={destroyEffectTrigger}
+            containerRef={opponentRowRef}
+            cardRefs={opponentCardElsRef}
+            onIgnite={handleIgnite}
+          />
         </div>
       </div>
 

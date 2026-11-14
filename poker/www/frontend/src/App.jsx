@@ -22,6 +22,8 @@ export default function App() {
   const [showFinal, setShowFinal] = useState(false);
   const [waitingForNextRound, setWaitingForNextRound] = useState(false);
   const [lastOutcome, setLastOutcome] = useState(null); // 直近ラウンドの結果 ('win' | 'loss' | 'draw')
+  const [destroyEffectTrigger, setDestroyEffectTrigger] = useState(0);
+  const [pendingDestroyEffect, setPendingDestroyEffect] = useState(false);
 
   const localPlayerNameRef = useRef('');
 
@@ -36,6 +38,14 @@ export default function App() {
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
     }
   }, [resultPhase, lastOutcome]);
+
+  // destroy_opponent_cardsの破壊演出は、相手カードのフリップ(公開)が終わった直後に発火させる
+  useEffect(() => {
+    if (pendingDestroyEffect && resultPhase === 'yourHand') {
+      setDestroyEffectTrigger((t) => t + 1);
+      setPendingDestroyEffect(false);
+    }
+  }, [resultPhase, pendingDestroyEffect]);
 
   const handleMessage = useCallback((message) => {
     switch (message.type) {
@@ -55,6 +65,9 @@ export default function App() {
 
       case 'update':
         setOpponentCards(message.opponent);
+        if (message.effect === 'destroy_opponent_cards') {
+          setPendingDestroyEffect(true);
+        }
         return;
 
       case 'result': {
@@ -136,6 +149,7 @@ export default function App() {
           confirmDisabled={confirmed || selectedIndices.size !== 5}
           yourHandName={showYourHand ? getHandName(yourPlayedCards) : null}
           opponentHandName={showOpponentHand ? getHandName(opponentCards) : null}
+          destroyEffectTrigger={destroyEffectTrigger}
         />
       )}
 
