@@ -10,14 +10,26 @@ export function useGameSocket(onMessage) {
     const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const socket = new WebSocket(`${wsProtocol}//${location.host}/ws`);
 
+    let closedByCleanup = false;
+
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data);
       console.log('Received message:', message);
       onMessageRef.current(message);
     };
 
+    // サーバー側から切断された場合(接続数制限・無通信タイムアウト・送信詰まりなど)を画面に伝える
+    socket.onclose = () => {
+      if (!closedByCleanup) {
+        onMessageRef.current({ type: 'connection_closed' });
+      }
+    };
+
     socketRef.current = socket;
-    return () => socket.close();
+    return () => {
+      closedByCleanup = true;
+      socket.close();
+    };
   }, []);
 
   return useCallback((data) => {
