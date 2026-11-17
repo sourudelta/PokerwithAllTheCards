@@ -34,6 +34,9 @@ type Player struct {
 	room           atomic.Pointer[Room] // 所属ルーム(マッチメイカーのgoroutineから設定されるためatomicで保持)
 }
 
+// 1人あたりの手札の上限(初期値)。forceful_sentryの効果でラウンド中に減ることがある
+const defaultHandLimit = 8
+
 var (
 	rooms      = make(map[string]*Room) // ルームIDとルームのマッピング
 	roomsMutex sync.Mutex               // ルーム操作用ミューテックス
@@ -109,7 +112,7 @@ func HandleConnections(w http.ResponseWriter, r *http.Request) {
 				sendError(client, "マッチングの試行回数が多すぎます。しばらく待ってからお試しください。")
 				break
 			}
-			player = &Player{Conn: conn, client: client, Ready: false, Name: name, Handlimit: 7}
+			player = &Player{Conn: conn, client: client, Ready: false, Name: name, Handlimit: defaultHandLimit}
 			client.send(map[string]interface{}{"type": "queue.joined"})
 			waitingQueue.enqueue(player)
 			log.Printf("Player %q entered matchmaking queue", name)
@@ -145,7 +148,7 @@ func HandleConnections(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 			// プレイヤー作成
-			p := &Player{Conn: conn, client: client, Ready: false, Name: name, Handlimit: 7}
+			p := &Player{Conn: conn, client: client, Ready: false, Name: name, Handlimit: defaultHandLimit}
 			// プレイヤー追加が成功したか確認
 			if !room.addPlayer(p) {
 				room = nil
@@ -182,7 +185,8 @@ func HandleConnections(w http.ResponseWriter, r *http.Request) {
 
 				if room.allPlayersReady() {
 					room.resetPlayerStates() // プレイヤー状態のリセット
-					room.distributeCards()   // 新しいカードを配布
+					room.Round++             // 次のラウンドへ遷移するタイミングでラウンド数を進める
+					room.distributeCards()   // 新しいカードを配布(ラウンド数も一緒に送る)
 					// クライアントにリスタートを通知
 					for _, p := range room.Players {
 						p.client.send(map[string]interface{}{
@@ -343,10 +347,16 @@ func (r *Room) distributeCards() {
 		p.Cards = append(append([]models.Card{}, p.RemainingCards...), newCards...)
 		p.RemainingCards = nil
 
-		// クライアントにカードを送信
+		// クライアントにカードを送信(画面に表示するため相手の名前も一緒に送る)
+		opponentName := ""
+		if opponent := r.getOpponent(p); opponent != nil {
+			opponentName = opponent.Name
+		}
 		p.client.send(map[string]interface{}{
-			"type":  "cards",
-			"cards": p.Cards,
+			"type":          "cards",
+			"cards":         p.Cards,
+			"round":         r.Round,
+			"opponent_name": opponentName,
 		})
 	}
 }
@@ -455,7 +465,6 @@ func (r *Room) handleGameLogic() {
 			player2.Score++
 		}
 
-		r.Round++
 		if r.Round > 5 {
 			log.Println("finish")
 		}

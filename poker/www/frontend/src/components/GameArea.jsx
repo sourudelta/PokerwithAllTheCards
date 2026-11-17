@@ -7,6 +7,8 @@ import { CardDestroyEffect } from '../effects/CardDestroyEffect';
 export function GameArea({
   roomId,
   round,
+  yourName,
+  opponentName,
   yourCards,
   opponentCards,
   selectedIndices,
@@ -75,6 +77,10 @@ export function GameArea({
           ラウンド数: <span id="round-count">{round}</span>
         </p>
       </div>
+
+      {/* プレイヤー名: 相手は右上、自分は左下に固定表示する */}
+      {opponentName && <div className="player-name player-name--opponent">{opponentName}</div>}
+      {yourName && <div className="player-name player-name--you">{yourName}</div>}
 
       <div className="player-area">
         <h2>相手のカード</h2>

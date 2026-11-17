@@ -16,6 +16,8 @@ export default function App() {
   const [phase, setPhase] = useState('join'); // join | searching | game
   const [searchMode, setSearchMode] = useState(null); // searching中のみ 'room' | 'random'
   const [roomId, setRoomId] = useState('');
+  const [yourName, setYourName] = useState('');
+  const [opponentName, setOpponentName] = useState('');
   const [yourCards, setYourCards] = useState([]);
   const [opponentCards, setOpponentCards] = useState([]);
   const [selectedIndices, setSelectedIndices] = useState(new Set());
@@ -102,6 +104,9 @@ export default function App() {
           setConfirmed(false);
           setPhase('game');
           setWaitingForNextRound(false);
+          // サーバーは次ラウンドへの遷移時(手札配布時)にラウンド数を進めて送ってくる
+          if (message.round) setRound(message.round);
+          if (message.opponent_name) setOpponentName(message.opponent_name);
           setRoundMessage(null); // 新しい手札が届いたので結果モーダルを閉じる
         };
 
@@ -130,8 +135,8 @@ export default function App() {
           setLastOutcome('loss');
         }
 
-        setRound(message.round);
-        if (message.round > MAX_ROUNDS) {
+        // message.round は今終わったラウンドの番号
+        if (message.round >= MAX_ROUNDS) {
           setShowFinal(true);
         } else {
           setRoundMessage(resultMessage);
@@ -148,6 +153,7 @@ export default function App() {
 
   const handleJoin = (inputRoomId, name) => {
     localPlayerNameRef.current = name;
+    setYourName(name);
     send({ type: 'join', room_id: inputRoomId, name });
     setRoomId(inputRoomId);
     setPhase('searching');
@@ -156,6 +162,7 @@ export default function App() {
 
   const handleRandomMatch = (name) => {
     localPlayerNameRef.current = name;
+    setYourName(name);
     send({ type: 'queue.join', name });
     setPhase('searching');
     setSearchMode('random');
@@ -208,6 +215,8 @@ export default function App() {
         <GameArea
           roomId={roomId}
           round={round}
+          yourName={yourName}
+          opponentName={opponentName}
           yourCards={yourCards}
           opponentCards={opponentCards}
           selectedIndices={selectedIndices}

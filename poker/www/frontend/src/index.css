@@ -249,6 +249,31 @@ button:disabled {
     display: none;
 }
 
+/* プレイヤー名の表示(自分: 左下 / 相手: 右上) */
+.player-name {
+    position: fixed;
+    z-index: 10;
+    max-width: 40vw;
+    padding: 8px 16px;
+    border-radius: 8px;
+    background-color: rgba(0, 0, 0, 0.35);
+    font-size: 18px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.player-name--opponent {
+    top: 16px;
+    right: 16px;
+}
+
+.player-name--you {
+    bottom: 16px;
+    left: 16px;
+}
+
 /* ===== マッチング成立時の画面遷移 (View Transitions API) ===== */
 #join-overlay {
     view-transition-name: join-screen;
