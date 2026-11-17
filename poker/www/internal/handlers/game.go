@@ -34,6 +34,9 @@ type Player struct {
 	room           atomic.Pointer[Room] // 所属ルーム(マッチメイカーのgoroutineから設定されるためatomicで保持)
 }
 
+// 1人あたりの手札の上限(初期値)。forceful_sentryの効果でラウンド中に減ることがある
+const defaultHandLimit = 8
+
 var (
 	rooms      = make(map[string]*Room) // ルームIDとルームのマッピング
 	roomsMutex sync.Mutex               // ルーム操作用ミューテックス
@@ -109,7 +112,7 @@ func HandleConnections(w http.ResponseWriter, r *http.Request) {
 				sendError(client, "マッチングの試行回数が多すぎます。しばらく待ってからお試しください。")
 				break
 			}
-			player = &Player{Conn: conn, client: client, Ready: false, Name: name, Handlimit: 7}
+			player = &Player{Conn: conn, client: client, Ready: false, Name: name, Handlimit: defaultHandLimit}
 			client.send(map[string]interface{}{"type": "queue.joined"})
 			waitingQueue.enqueue(player)
 			log.Printf("Player %q entered matchmaking queue", name)
@@ -145,7 +148,7 @@ func HandleConnections(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 			// プレイヤー作成
-			p := &Player{Conn: conn, client: client, Ready: false, Name: name, Handlimit: 7}
+			p := &Player{Conn: conn, client: client, Ready: false, Name: name, Handlimit: defaultHandLimit}
 			// プレイヤー追加が成功したか確認
 			if !room.addPlayer(p) {
 				room = nil
@@ -182,7 +185,8 @@ func HandleConnections(w http.ResponseWriter, r *http.Request) {
 
 				if room.allPlayersReady() {
 					room.resetPlayerStates() // プレイヤー状態のリセット
-					room.distributeCards()   // 新しいカードを配布
+					room.Round++             // 次のラウンドへ遷移するタイミングでラウンド数を進める
+					room.distributeCards()   // 新しいカードを配布(ラウンド数も一緒に送る)
 					// クライアントにリスタートを通知
 					for _, p := range room.Players {
 						p.client.send(map[string]interface{}{
@@ -343,10 +347,16 @@ func (r *Room) distributeCards() {
 		p.Cards = append(append([]models.Card{}, p.RemainingCards...), newCards...)
 		p.RemainingCards = nil
 
-		// クライアントにカードを送信
+		// クライアントにカードを送信(画面に表示するため相手の名前も一緒に送る)
+		opponentName := ""
+		if opponent := r.getOpponent(p); opponent != nil {
+			opponentName = opponent.Name
+		}
 		p.client.send(map[string]interface{}{
-			"type":  "cards",
-			"cards": p.Cards,
+			"type":          "cards",
+			"cards":         p.Cards,
+			"round":         r.Round,
+			"opponent_name": opponentName,
 		})
 	}
 }
@@ -446,8 +456,22 @@ func (r *Room) handleGameLogic() {
 		effectiveP1Cards, effectiveP2Cards, destroyedPlayer := applySpecialEffects(player1, player2, player1.Selected, player2.Selected, player1.Name, player2.Name)
 		r.DestroyedPlayer = destroyedPlayer
 
-		// 選択したカードの比較処理
-		result := models.CompareHands(player1.Name, effectiveP1Cards, player2.Name, effectiveP2Cards)
+		// 選択したカードの比較処理(ルール変更カードが有効ならそのルールで判定する)
+		result := ""
+		resolution := models.ResolveRule(effectiveP1Cards, effectiveP2Cards, nil)
+		rule := resolution.Rule
+		var ruleValues map[string]int
+		if rule != "" {
+			if resolution.Rolled {
+				log.Printf("Rule cards clashed. Dice: %s=%d, %s=%d", player1.Name, resolution.Dice1, player2.Name, resolution.Dice2)
+			}
+			log.Printf("Rule card activated: %s", rule)
+			result = models.CompareByRule(rule, player1.Name, effectiveP1Cards, player2.Name, effectiveP2Cards)
+			s1, s2 := models.RuleScores(rule, effectiveP1Cards, effectiveP2Cards)
+			ruleValues = map[string]int{player1.Name: s1, player2.Name: s2}
+		} else {
+			result = models.CompareHands(player1.Name, effectiveP1Cards, player2.Name, effectiveP2Cards)
+		}
 
 		if result == player1.Name {
 			player1.Score++
@@ -455,18 +479,32 @@ func (r *Room) handleGameLogic() {
 			player2.Score++
 		}
 
-		r.Round++
 		if r.Round > 5 {
 			log.Println("finish")
 		}
 
 		// 結果をクライアントに送信
 		for _, p := range r.Players {
-			p.client.send(map[string]interface{}{
+			data := map[string]interface{}{
 				"type":   "result",
 				"result": result,
 				"round":  r.Round,
-			})
+			}
+			if rule != "" {
+				data["rule"] = rule
+				data["rule_description"] = models.RuleDescription(rule)
+				data["rule_values"] = ruleValues
+				if resolution.Rolled {
+					// ルールが競合した場合のサイコロの出目と、ルールが採用されたプレイヤー
+					data["dice"] = map[string]int{player1.Name: resolution.Dice1, player2.Name: resolution.Dice2}
+					if resolution.Owner == 1 {
+						data["rule_owner"] = player1.Name
+					} else {
+						data["rule_owner"] = player2.Name
+					}
+				}
+			}
+			p.client.send(data)
 		}
 	}
 }

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 295" width="200" height="295">
+  <rect x="2" y="2" width="196" height="291" rx="12" fill="#3b2a5c" stroke="#d4af37" stroke-width="4"/>
+  <rect x="14" y="14" width="172" height="34" rx="6" fill="#241a3a"/>
+  <text x="100" y="37" text-anchor="middle" font-family="sans-serif" font-size="15" font-weight="bold" fill="#f3e3a0">ルール変更</text>
+  <text x="100" y="140" text-anchor="middle" font-family="sans-serif" font-size="40" font-weight="bold" fill="#f3e3a0">♠♥♦♣</text>
+  <rect x="14" y="200" width="172" height="80" rx="6" fill="#efe8d6"/>
+  <text x="100" y="232" text-anchor="middle" font-family="sans-serif" font-size="15" font-weight="bold" fill="#241a3a">場のスートの種類が</text>
+  <text x="100" y="258" text-anchor="middle" font-family="sans-serif" font-size="15" font-weight="bold" fill="#241a3a">多い方の勝ち</text>
+</svg>
