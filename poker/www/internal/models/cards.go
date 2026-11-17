@@ -61,6 +61,27 @@ func CreateDeck() []Card {
 		IsSpecial: true,
 		Effect:    "forceful_sentry",
 	})
+
+	// 勝敗のルールを変更する特殊カード
+	ruleCards := []struct {
+		value  int
+		image  string
+		effect string
+	}{
+		{103, "images/rule_field_sum_high.svg", RuleFieldSumHigh},
+		{104, "images/rule_field_sum_low.svg", RuleFieldSumLow},
+		{105, "images/rule_suit_variety.svg", RuleSuitVariety},
+		{106, "images/rule_face_card_count.svg", RuleFaceCardCount},
+	}
+	for _, rc := range ruleCards {
+		deck = append(deck, Card{
+			Suit:      "Special",
+			Value:     rc.value,
+			Image:     rc.image,
+			IsSpecial: true,
+			Effect:    rc.effect,
+		})
+	}
 	return deck
 }
 
