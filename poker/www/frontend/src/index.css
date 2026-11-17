@@ -482,3 +482,94 @@ button:disabled {
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
 }
 
+
+/* ルール変更カードが競合した時のサイコロ演出 */
+.dice-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 900;
+    padding: 0 16px;
+}
+
+.dice-panel {
+    background: linear-gradient(135deg, #2e7d32, #43a047);
+    border: 3px solid #FFEB3B;
+    border-radius: 20px;
+    padding: 28px 40px;
+    text-align: center;
+    color: white;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    min-width: 300px;
+}
+
+.dice-panel h2 {
+    font-size: 28px;
+    margin-bottom: 8px;
+}
+
+.dice-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 32px;
+    margin: 20px 0;
+}
+
+.dice-player {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    font-weight: 700;
+    font-size: 18px;
+}
+
+.dice-vs {
+    font-size: 24px;
+    font-weight: 700;
+    color: #FFEB3B;
+}
+
+.die {
+    width: 72px;
+    height: 72px;
+    padding: 10px;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.4);
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    place-items: center;
+    box-sizing: border-box;
+    transition: box-shadow 0.3s, opacity 0.3s;
+}
+
+.die--winner {
+    box-shadow: 0 0 0 4px #FFEB3B, 0 0 24px 6px rgba(255, 235, 59, 0.8);
+}
+
+.die--loser {
+    opacity: 0.5;
+}
+
+.pip {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #222;
+}
+
+.pip--empty {
+    visibility: hidden;
+}
+
+.dice-result {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.5;
+}

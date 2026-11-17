@@ -7,6 +7,8 @@ import { GameArea } from './components/GameArea';
 import { RoundResultModal } from './components/RoundResultModal';
 import { FinalResultModal } from './components/FinalResultModal';
 import { getHandName } from './utils/handEvaluator';
+import { RULE_VALUE_LABELS } from './data/specialCards';
+import { DiceRollEffect } from './effects/DiceRollEffect';
 import { runViewTransition } from './components/navigationTransition';
 
 
@@ -30,6 +32,8 @@ export default function App() {
   const [lastOutcome, setLastOutcome] = useState(null); // 直近ラウンドの結果 ('win' | 'loss' | 'draw')
   const [destroyEffectTrigger, setDestroyEffectTrigger] = useState(0);
   const [pendingDestroyEffect, setPendingDestroyEffect] = useState(false);
+  // ルール変更カードが有効だったラウンドの情報 { rule, description, yourValue, opponentValue, dice }
+  const [roundRule, setRoundRule] = useState(null);
 
   const localPlayerNameRef = useRef('');
   // handleMessage は依存配列が空なので、最新の phase を ref で参照する
@@ -40,10 +44,14 @@ export default function App() {
   // 切断系の通知(opponent_left / connection_closed)は重複して届くことがあるので1回だけ処理する
   const leavingRef = useRef(false);
 
-  const resultPhase = useResultPhase(roundMessage !== null, opponentCards.length);
+  const resultPhase = useResultPhase(roundMessage !== null, opponentCards.length, Boolean(roundRule?.dice));
   const yourPlayedCards = yourCards.filter((_, i) => selectedIndices.has(i));
   const showYourHand = resultPhase === 'yourHand' || resultPhase === 'opponentHand' || resultPhase === 'modal';
   const showOpponentHand = resultPhase === 'opponentHand' || resultPhase === 'modal';
+  // ルール変更カードが有効なら、役名の代わりにそのルールの比較値を表示する
+  const ruleLabel = roundRule ? RULE_VALUE_LABELS[roundRule.rule] : null;
+  const yourHandName = ruleLabel ? `${ruleLabel} ${roundRule.yourValue}` : getHandName(yourPlayedCards);
+  const opponentHandName = ruleLabel ? `${ruleLabel} ${roundRule.opponentValue}` : getHandName(opponentCards);
 
   // 結果モーダルが実際に表示されるタイミング(演出完了後)まで紙吹雪を遅らせる
   useEffect(() => {
@@ -124,6 +132,26 @@ export default function App() {
 
       case 'result': {
         const resultMessage = message.result;
+        if (message.rule && message.rule_values) {
+          const myName = localPlayerNameRef.current;
+          const opponentName = Object.keys(message.rule_values).find((n) => n !== myName);
+          setRoundRule({
+            rule: message.rule,
+            description: message.rule_description,
+            yourValue: message.rule_values[myName],
+            opponentValue: message.rule_values[opponentName],
+            // ルールが競合してサイコロで決めた場合のみ
+            dice: message.dice
+              ? {
+                  yours: message.dice[myName],
+                  opponent: message.dice[opponentName],
+                  yoursApplied: message.rule_owner === myName,
+                }
+              : null,
+          });
+        } else {
+          setRoundRule(null);
+        }
         if (resultMessage.includes('Draw')) {
           setScore((s) => ({ ...s, draw: s.draw + 1 }));
           setLastOutcome('draw');
@@ -223,15 +251,20 @@ export default function App() {
           onToggleCard={toggleCard}
           onConfirm={handleConfirm}
           confirmDisabled={confirmed || selectedIndices.size !== 5}
-          yourHandName={showYourHand ? getHandName(yourPlayedCards) : null}
-          opponentHandName={showOpponentHand ? getHandName(opponentCards) : null}
+          yourHandName={showYourHand ? yourHandName : null}
+          opponentHandName={showOpponentHand ? opponentHandName : null}
           destroyEffectTrigger={destroyEffectTrigger}
         />
+      )}
+
+      {resultPhase === 'dice' && roundRule?.dice && (
+        <DiceRollEffect dice={roundRule.dice} ruleDescription={roundRule.description} />
       )}
 
       {resultPhase === 'modal' && (
         <RoundResultModal
           message={roundMessage}
+          ruleDescription={roundRule?.description}
           onNext={handleNextRound}
           nextDisabled={waitingForNextRound}
         />
